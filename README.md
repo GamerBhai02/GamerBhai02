@@ -31,9 +31,13 @@ Welcome to my GitHub profile! I'm a passionate developer who loves working with 
 - ![GitHub](https://img.shields.io/badge/-GitHub-181717?style=flat&logo=github&logoColor=ffffff)
 - ![VS Code](https://img.shields.io/badge/-VS%20Code-0078D4?style=flat&logo=visual-studio-code&logoColor=ffffff)
 
-## 📈 GitHub Stats
+## 📈 GitHub Contributions
 
-![Your Name's GitHub Stats](https://github-readme-stats.vercel.app/api?username=GamerBhai02&show_icons=true&theme=radical)
+### My GitHub Stats:
+![Abu Talha's GitHub Stats](https://github-readme-stats.vercel.app/api?GamerBhai02=yourusername&show_icons=true&theme=radical)
+
+### My GitHub Activity:
+![Abu Talha's Activity Graph](https://github-readme-activity-graph.cyclic.app/graph?username=GamerBhai02&bg_color=2b2b2b&color=ffffff&line=ff6f00&point=ffffff&area=true&hide_border=true)
 
 ## 🔗 Find me elsewhere:
 - **LinkedIn**: [Abu Talha Ansari](https://www.linkedin.com/in/gamerbhai02)
