@@ -1,0 +1,342 @@
+1
+
+
+import os
+import kagglehub
+import pandas as pd
+import matplotlib.pyplot as plt
+from sklearn.model_selection import train_test_split
+from sklearn.preprocessing import StandardScaler, OneHotEncoder
+from sklearn.compose import ColumnTransformer
+from sklearn.linear_model import LinearRegression, Ridge, Lasso, ElasticNet
+from sklearn.metrics import mean_squared_error, r2_score
+
+p = kagglehub.dataset_download("yadavhim/housing-csv")
+d = pd.read_csv(os.path.join(p, "housing.csv")).dropna()
+
+X = d.drop("median_house_value", axis=1)
+y = d["median_house_value"]
+
+num = ["longitude", "latitude", "housing_median_age",
+       "total_rooms", "total_bedrooms", "population",
+       "households", "median_income"]
+cat = ["ocean_proximity"]
+
+pre = ColumnTransformer([
+    ("num", StandardScaler(), num),
+    ("cat", OneHotEncoder(handle_unknown="ignore"), cat)
+])
+
+Xtr, Xte, ytr, yte = train_test_split(
+    X, y, test_size=0.2, random_state=42
+)
+Xtr = pre.fit_transform(Xtr)
+Xte = pre.transform(Xte)
+
+models = {
+    "LinearRegression": LinearRegression(),
+    "Ridge": Ridge(alpha=1),
+    "Lasso": Lasso(alpha=100),
+    "ElasticNet": ElasticNet(alpha=100, l1_ratio=0.5)
+}
+
+coef = {}
+
+for name, model in models.items():
+    model.fit(Xtr, ytr)
+    pred = model.predict(Xte)
+
+    print("\n", name)
+    print("MSE:", round(mean_squared_error(yte, pred), 2))
+    print("R2 Score:", round(r2_score(yte, pred), 4))
+    print("Nonzero Coefficients:",
+          (model.coef_ != 0).sum(), "/", len(model.coef_))
+
+    coef[name] = model.coef_
+
+plt.figure(figsize=(12, 6))
+for name, c in coef.items():
+    plt.plot(c, marker="o", label=name)
+
+plt.xlabel("Feature Index")
+plt.ylabel("Coefficient Value")
+plt.title("Regression Coefficient Comparison")
+plt.legend()
+plt.grid(True)
+plt.show()
+
+
+
+2
+
+
+import os, time, kagglehub
+import numpy as np
+import pandas as pd
+import matplotlib.pyplot as plt
+from sklearn.svm import SVC
+from sklearn.preprocessing import StandardScaler, LabelEncoder
+from sklearn.model_selection import train_test_split
+from sklearn.metrics import accuracy_score, confusion_matrix
+
+p = kagglehub.dataset_download("saurabh00007/iriscsv")
+d = pd.read_csv(os.path.join(p, "iris.csv"))
+d = d[d["variety"].isin(["Setosa", "Versicolor"])]
+
+X = d[["sepal.length", "sepal.width"]].values
+y = LabelEncoder().fit_transform(d["variety"])
+
+Xtr, Xte, ytr, yte = train_test_split(
+    X, y, test_size=0.3, random_state=42, stratify=y
+)
+
+sc = StandardScaler()
+Xtr = sc.fit_transform(Xtr)
+Xte = sc.transform(Xte)
+
+kernels = ["linear", "poly", "rbf"]
+models = {}
+
+for k in kernels:
+    m = SVC(kernel=k, degree=3, gamma="scale", random_state=42)
+    t = time.time()
+    m.fit(Xtr, ytr)
+    t = time.time() - t
+
+    pred = m.predict(Xte)
+    print("\nKernel:", k)
+    print("Training time: {:.6f} sec".format(t))
+    print("Accuracy: {:.4f}".format(accuracy_score(yte, pred)))
+    print("Confusion Matrix:\n", confusion_matrix(yte, pred))
+    models[k] = m
+
+def plot_boundary(X, y, m, title):
+    h = 0.02
+    a, b = X[:, 0].min()-1, X[:, 0].max()+1
+    c, d = X[:, 1].min()-1, X[:, 1].max()+1
+    xx, yy = np.meshgrid(np.arange(a, b, h),
+                         np.arange(c, d, h))
+    z = m.predict(np.c_[xx.ravel(), yy.ravel()]).reshape(xx.shape)
+    plt.contourf(xx, yy, z, alpha=0.3, cmap=plt.cm.Set1)
+    s = plt.scatter(X[:, 0], X[:, 1], c=y, edgecolors="k",
+                    cmap=plt.cm.Set1)
+    plt.title(title)
+    plt.xlabel("Sepal Length (scaled)")
+    plt.ylabel("Sepal Width (scaled)")
+    plt.legend(*s.legend_elements(), title="Classes")
+    plt.show()
+
+for k in kernels:
+    plot_boundary(Xte, yte, models[k],
+                  "SVM with " + k + " Kernel Decision Boundary")
+
+
+
+3
+
+
+
+import os, kagglehub
+import pandas as pd
+import numpy as np
+from sklearn.model_selection import cross_val_score, StratifiedKFold
+from sklearn.preprocessing import StandardScaler, LabelEncoder
+from sklearn.pipeline import make_pipeline
+from sklearn.linear_model import LogisticRegression
+from sklearn.neighbors import KNeighborsClassifier
+from sklearn.tree import DecisionTreeClassifier
+from sklearn.svm import SVC
+from sklearn.naive_bayes import GaussianNB
+from sklearn.ensemble import StackingClassifier
+
+p = kagglehub.dataset_download("yasserh/breast-cancer-dataset")
+d = pd.read_csv(os.path.join(p, "breast-cancer.csv"))
+
+d = d.drop(columns=["id"], errors="ignore")
+d = d.loc[:, ~d.columns.str.contains("^Unnamed")]
+
+X = d.drop("diagnosis", axis=1)
+y = LabelEncoder().fit_transform(d["diagnosis"])
+
+models = [
+    ("lr", make_pipeline(StandardScaler(),
+                         LogisticRegression(max_iter=1000))),
+    ("knn", make_pipeline(StandardScaler(),
+                          KNeighborsClassifier())),
+    ("cart", DecisionTreeClassifier(random_state=42)),
+    ("svm", make_pipeline(StandardScaler(),
+                          SVC(kernel="linear"))),
+    ("nb", GaussianNB())
+]
+
+stack = StackingClassifier(
+    estimators=models,
+    final_estimator=LogisticRegression(max_iter=1000),
+    cv=3, n_jobs=-1
+)
+
+models.append(("stacking", stack))
+
+cv = StratifiedKFold(n_splits=5, shuffle=True, random_state=42)
+
+for name, model in models:
+    scores = cross_val_score(model, X, y, cv=cv,
+                             scoring="accuracy", n_jobs=-1)
+    print(f"{name}: Mean Accuracy = {np.mean(scores):.4f} "
+          f"(+/- {np.std(scores):.4f})")
+
+
+
+
+4
+
+
+
+import numpy as np
+import pandas as pd
+import matplotlib.pyplot as plt
+from sklearn.tree import DecisionTreeClassifier
+from sklearn.model_selection import GridSearchCV, validation_curve
+
+d = pd.read_csv("iris.csv")
+
+X = d[["sepal.length", "sepal.width",
+       "petal.length", "petal.width"]]
+y = d["variety"]
+
+params = {
+    "max_depth": [None, 2, 3, 4, 5, 6, 7, 8],
+    "min_samples_split": [2, 4, 6, 8, 10]
+}
+
+m = DecisionTreeClassifier(random_state=42)
+g = GridSearchCV(m, params, cv=5, scoring="accuracy")
+g.fit(X, y)
+
+print("Best parameters:", g.best_params_)
+print("Best CV accuracy:", g.best_score_)
+
+r = np.arange(1, 15)
+
+tr, va = validation_curve(
+    DecisionTreeClassifier(
+        min_samples_split=g.best_params_["min_samples_split"],
+        random_state=42
+    ),
+    X, y, param_name="max_depth",
+    param_range=r, cv=5, scoring="accuracy"
+)
+
+plt.plot(r, tr.mean(axis=1), marker="o", label="Training Score")
+plt.plot(r, va.mean(axis=1), marker="o", label="Cross-Validation Score")
+plt.title("Validation Curve for Decision Tree")
+plt.xlabel("Maximum Depth (max_depth)")
+plt.ylabel("Accuracy")
+plt.xticks(r)
+plt.grid(True)
+plt.legend()
+plt.show()
+
+
+
+5.
+
+pip install hmmlearn seaborn
+
+import numpy as np
+import matplotlib.pyplot as plt
+import seaborn as sns
+from hmmlearn import hmm
+from sklearn.metrics import accuracy_score
+
+states = ["Rainy", "Sunny"]
+obs = ["walk", "shop", "clean"]
+
+seq = ["walk", "shop", "clean", "clean", "walk", "walk", "shop"]
+actual = ["Sunny", "Rainy", "Rainy", "Rainy",
+          "Sunny", "Sunny", "Rainy"]
+
+om = {x: i for i, x in enumerate(obs)}
+sm = {x: i for i, x in enumerate(states)}
+
+X = np.array([om[x] for x in seq]).reshape(-1, 1)
+y = np.array([sm[x] for x in actual])
+
+start = np.array([0.6, 0.4])
+trans = np.array([[0.7, 0.3],
+                  [0.4, 0.6]])
+emit = np.array([[0.1, 0.4, 0.5],
+                 [0.6, 0.3, 0.1]])
+
+m = hmm.CategoricalHMM(n_components=2, init_params="")
+m.startprob_ = start
+m.transmat_ = trans
+m.emissionprob_ = emit
+
+logp, pred = m.decode(X, algorithm="viterbi")
+names = [states[i] for i in pred]
+
+print("Predicted states:", names)
+print("Actual states:", actual)
+print("Accuracy:", round(accuracy_score(y, pred), 2))
+print("Log probability:", round(logp, 2))
+
+def plot(a, rows, cols, title):
+    sns.heatmap(a, annot=True, fmt=".2f",
+                xticklabels=cols, yticklabels=rows,
+                cmap="Blues")
+    plt.title(title)
+    plt.xlabel("To")
+    plt.ylabel("From")
+    plt.show()
+
+plot(m.transmat_, states, states, "State Transition Probabilities")
+plot(m.emissionprob_, states, obs, "Emission Probabilities")
+
+
+
+7
+
+
+import numpy as np
+import matplotlib.pyplot as plt
+from sklearn.preprocessing import PolynomialFeatures
+from sklearn.linear_model import LinearRegression
+from sklearn.metrics import mean_squared_error
+from sklearn.model_selection import train_test_split
+
+np.random.seed(42)
+X = np.random.rand(100, 1) * 6 - 3
+y = 0.5 * X**2 + X + 2 + np.random.randn(100, 1)
+
+Xtr, Xval, ytr, yval = train_test_split(
+    X, y, test_size=0.3, random_state=42
+)
+
+degrees = range(1, 16)
+tr_err, val_err = [], []
+
+for d in degrees:
+    p = PolynomialFeatures(degree=d, include_bias=False)
+    A = p.fit_transform(Xtr)
+    B = p.transform(Xval)
+
+    m = LinearRegression()
+    m.fit(A, ytr)
+
+    tr_err.append(mean_squared_error(ytr, m.predict(A)))
+    val_err.append(mean_squared_error(yval, m.predict(B)))
+
+plt.figure(figsize=(10, 6))
+plt.plot(degrees, tr_err, marker="o", label="Training Error")
+plt.plot(degrees, val_err, marker="o", label="Validation Error")
+plt.xlabel("Polynomial Degree")
+plt.ylabel("Mean Squared Error")
+plt.title("Bias-Variance Tradeoff")
+plt.legend()
+plt.grid(True)
+plt.show()
+
+best = np.argmin(val_err)
+print("Optimal model complexity: Degree", list(degrees)[best])
+print("Minimum validation error:", f"{val_err[best]:.4f}")
